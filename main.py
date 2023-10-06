@@ -2,156 +2,128 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-# 15 hops is max
-# routers = 20, so 22 nodes (1 attacker 1 defender, 20 routers)
-# each router has a unique ip, or identifier
-# branches = 3 or 4 or 5
-# Assume attackers are at the end of routers, multiple attackers should be one per branch at most
-# No attacker on the branch should assume normal user traffic
-# Assume different packet marking probability, p = 0.2, 0.4, 0.5, 0.6, 0.8 for your runs.
-# Attackers send X times more packets
-## TLDR: 15 hops, 22 nodes, 3->5 branches, multiple attacker scenario, probability of marking, Packet amount variance
 
-def trimTree(T,nodeCount,branches): #generate a tree with a root, and then add a number of branches connected to that root.
+def trim_tree(T, node_count, branches):
     tree = list(T.nodes)
     T.add_node(0)
-    for branch in range(1,branches+1):
+    
+    for branch in range(1, branches + 1):
         T.add_node(branch)
         T.add_edge(0, branch)
+    
     tree = list(T.nodes)
-    for i in range(len(tree),nodeCount+2): #Then randomly generate nodes and connections until node count is met.
-        if len(tree) < nodeCount+2:
-            T.add_node(i)
-            startNode = random.randint(1,len(tree))
-            while True:
-                if startNode !=i:
-                    break
-                startNode = random.randint(1,len(tree))
-            T.add_edge(startNode, i)
-            tree = list(T.nodes)
+    
+    while len(tree) < node_count + 2:
+        i = len(tree)
+        T.add_node(i)
+        start_node = random.randint(1, len(tree))
+        
+        while True:
+            if start_node != i:
+                break
+            start_node = random.randint(1, len(tree))
+        
+        T.add_edge(start_node, i)
+        tree = list(T.nodes)
+    
     return T
 
-def spawnAttackers(T,attackerC,defs): # take the list of nodes with one neighbor and set them as potential attackers. 
-    potentialAttackers = [] #also be sure to return the shortest path from the attacker to the defender node.
-    actualAttackers = []
-    normalUser = 0
-    tree = list(T.nodes)
-    for node in tree:
-       if len(list(T.neighbors(node))) == 1:
-        potentialAttackers.append(node)
-    for _ in range(attackerC):#Then randomly select N number of them as attackers. 
-        attackerNode = random.randint(0,len(potentialAttackers)-1)
-        actualAttackers.append(potentialAttackers[attackerNode])
-        del potentialAttackers[attackerNode]
-    normalUser=potentialAttackers[0] #From the remaining, select them to be a normal user.
-    for attacker in actualAttackers:
-        attackPath = nx.shortest_path(T,source=attacker,target=defs,weight="weight")
-    return actualAttackers,attackPath,normalUser
-
-def generateAttack(T,attackerNodes,normalUser,defender,mProb,aMult): # take in a list of attacker nodes
+def generate_attack(T, attacker_nodes, normal_user, defender, m_prob, a_mult):
     distance = 0
-    normalUserPackets=1
-    aPackets = aMult*normalUserPackets
-    packetMarks = []
-    packetMark = 0
-    packetEdgeMarks = []
+    normal_user_packets = 1
+    a_packets = a_mult * normal_user_packets
+    packet_marks = []
+    packet_mark = 0
+    packet_edge_marks = []
+
+    print("PATH FROM NORMAL USER", normal_user, "TO", defender, ":", nx.shortest_path(T, source=normal_user, target=defender, weight="weight"), "LENGTH:", nx.shortest_path_length(T, source=normal_user, target=defender, weight="weight"))
+    normal_user_path = nx.shortest_path(T, source=normal_user, target=defender, weight="weight")
     
-    print("PATH FROM NORMAL USER ",normalUser,"TO",defender,": ",nx.shortest_path(T,source=normalUser,target=defender,weight="weight"),"LENGTH: ",nx.shortest_path_length(T, source=normalUser, target=defender, weight="weight"))
-    normalUserPath = nx.shortest_path(T,source=normalUser,target=defender,weight="weight")
-    #for normal users node sample
-    for packet in range(normalUserPackets):
-        edgeMark=defender,0,0
-        for router in normalUserPath:
-            failedCheck = random.random()
-            if failedCheck < mProb:
-                packetMark = router
-                edgeMark = (router,0,0)
+    for packet in range(normal_user_packets):
+        edge_mark = defender, 0, 0
+        for router in normal_user_path:
+            failed_check = random.random()
+            if failed_check < m_prob:
+                packet_mark = router
+                edge_mark = (router, 0, 0)
             else:
-                if edgeMark[2] == 0:
-                    edgeMark = (edgeMark[0],router,edgeMark[2])
-                edgeMark= (edgeMark[0],edgeMark[1],edgeMark[2]+1)
-        packetMarks.append(packetMark)
-        packetEdgeMarks.append(edgeMark)
-    ##for attackers node sample
-    for Anode in attackerNodes:
-        print("PATH FROM ATTACKER ",Anode,"TO",defender,": ",nx.shortest_path(T,source=Anode,target=defender,weight="weight"),"LENGTH: ",nx.shortest_path_length(T, source=Anode, target=defender, weight="weight"))
-        attackPath = nx.shortest_path(T,source=Anode,target=defender,weight="weight")
-        for packet in range(aPackets):
-            edgeMark=defender,0,0
-            for router in attackPath:
-                failedCheck = random.random()
-                if failedCheck < mProb:
-                    packetMark = router
-                    edgeMark = (router,0,0)
+                if edge_mark[2] == 0:
+                    edge_mark = (edge_mark[0], router, edge_mark[2])
+                edge_mark = (edge_mark[0], edge_mark[1], edge_mark[2] + 1)
+        packet_marks.append(packet_mark)
+        packet_edge_marks.append(edge_mark)
+
+    for Anode in attacker_nodes:
+        print("PATH FROM ATTACKER", Anode, "TO", defender, ":", nx.shortest_path(T, source=Anode, target=defender, weight="weight"), "LENGTH:", nx.shortest_path_length(T, source=Anode, target=defender, weight="weight"))
+        attack_path = nx.shortest_path(T, source=Anode, target=defender, weight="weight")
+        for packet in range(a_packets):
+            edge_mark = defender, 0, 0
+            for router in attack_path:
+                failed_check = random.random()
+                if failed_check < m_prob:
+                    packet_mark = router
+                    edge_mark = (router, 0, 0)
                 else:
-                    if edgeMark[2] == 0:
-                        edgeMark = (edgeMark[0],router,edgeMark[2])
-                    edgeMark= (edgeMark[0],edgeMark[1],edgeMark[2]+1)
-            packetMarks.append(packetMark)
-            packetEdgeMarks.append(edgeMark)
+                    if edge_mark[2] == 0:
+                        edge_mark = (edge_mark[0], router, edge_mark[2])
+                    edge_mark = (edge_mark[0], edge_mark[1], edge_mark[2] + 1)
+            packet_marks.append(packet_mark)
+            packet_edge_marks.append(edge_mark)
 
-   # print (packetEdgeMarks)
-    return packetMarks,packetEdgeMarks
+    return packet_marks, packet_edge_marks
 
-def interpretMarks(nodeSampled,edgeSampled,attackerP):
-    results = np.unique(nodeSampled, return_counts=True)
-    if  np.array_equal(results[0],attackerP[::-1]) :
+def interpret_marks(node_sampled, edge_sampled, attacker_path):
+    results = np.unique(node_sampled, return_counts=True)
+    
+    if np.array_equal(results[0], attacker_path[::-1]):
         accurate = 'ACCURATE'
         a = 1
     else:
-        accurate ='INACCURATE'
+        accurate = 'INACCURATE'
         a = 0
-    print ("-----------------------------")
-    print ("node sampling says:",results[0], "with marked packet #s ",results[1],"times")
-    print ("the attacker should be...",results[0][len(results[0])-1])
-    print ("this result is",accurate,"in node sample with attacker path:",attackerP)
-    edgeResults = []
-    tupleList =[]
+    
+    print("-----------------------------")
+    print("node sampling says:", results[0], "with marked packet #s", results[1], "times")
+    print("the attacker should be...", results[0][len(results[0]) - 1])
+    print("this result is", accurate, "in node sample with attacker path:", attacker_path)
+    
+    edge_results = []
+    tuple_list = []
     G = nx.Graph()
     G.add_node(0)
-    for packet in edgeSampled:
-        if packet[2] == 0:
-            G.add_edge(packet[0],0,distance = 0)
-        else:
-            G.add_edge(packet[0],packet[1],distance = packet[2])
-    sorted_edges = sorted(G.edges(data=True), key=lambda x: x[2]['distance'])
-    #for u, v, a in G.edges(data=True):
-        #short = nx.shortest_path_length(G, u, 0)
-       # if 2 < a["distance"]:
-         #   print (u,v,a)
-          #  tupleList.append((u,v))
-   # print(tupleList)
-    #G.remove_edges_from(tupleList)
-    print(sorted_edges,"SORTED EDGES")
-
-    for edge in sorted_edges:
-        if edge[0] not in edgeResults:
-            edgeResults.append(edge[0])
-        if edge[1] not in edgeResults:
-            edgeResults.append(edge[1])
-   # print (results2)
-  #  print (edgeResults)
-   # results2 = np.unique(packet, return_counts=True)
     
-    if  np.array_equal(edgeResults,attackerP[::-1]) :
+    for packet in edge_sampled:
+        if packet[2] == 0:
+            G.add_edge(packet[0], 0, distance=0)
+        else:
+            G.add_edge(packet[0], packet[1], distance=packet[2])
+    
+    sorted_edges = sorted(G.edges(data=True), key=lambda x: x[2]['distance'])
+    
+    for edge in sorted_edges:
+        if edge[0] not in edge_results:
+            edge_results.append(edge[0])
+        if edge[1] not in edge_results:
+            edge_results.append(edge[1])
+    
+    if np.array_equal(edge_results, attacker_path[::-1]):
         accurate = 'ACCURATE'
         b = 1
     else:
-        #print(results2[1],attackerP[::-1])
-        accurate ='INACCURATE'
+        accurate = 'INACCURATE'
         b = 0
 
     print("\n")
-    print ("edge sampling says:",edgeResults)
-    print ("the attacker should be...",edgeResults[len(edgeResults)-1])
-    print ("this result is",accurate,"in edge sample with attacker path:",attackerP)
+    print("edge sampling says:", edge_results)
+    print("the attacker should be...", edge_results[len(edge_results) - 1])
+    print("this result is", accurate, "in edge sample with attacker path:", attacker_path)
 
-    return a,b
+    return a, b
 
-def drawGraph(T,attackers):
+def draw_graph(T, attackers):
     color_map = ['red' if node in attackers else 'cyan' for node in T]
     color_map[0] = 'green'
-    nx.draw(T,with_labels=True,node_color=color_map)
+    nx.draw(T, with_labels=True, node_color=color_map)
     plt.show()
 
 def simulate(routers,branches,attackers,mProb,aMult,defs,simulations):
@@ -178,22 +150,20 @@ def simulate(routers,branches,attackers,mProb,aMult,defs,simulations):
     return successTot,successTot2,mProb,aMult
 
 if __name__ == '__main__':
-    resultsFinal = []
-    hopCount = 15 #max number of hops, currently unused
-    routerCount = 20 #number of routers
-    branchCount = 3 #branches
-    attackerCount = 2 #attackers
-    #markProbability = .2 #chance to mark
-    #attackerMult = 10000 #more packets attackers send relative to normal users
-    defenderNode = 0 #defender spawn
+    results_final = []
+    hop_count = 15
+    router_count = 20
+    branch_count = 3
+    attacker_count = 2
+    defender_node = 0
     simulations = 1000
-    probabiltiies = [.2,.4,.5,.6,.8]
-    attackerRatio = [10,100,1000]
-    for markProbability in probabiltiies:
-        for attackerMult in attackerRatio:
-            results = simulate(routerCount,branchCount,attackerCount,markProbability,attackerMult,defenderNode,simulations) 
-            resultsFinal.append(results)
-    for nodeMark, edgeMark, probabilityMark, aPackets in resultsFinal:
-        print (nodeMark, edgeMark, probabilityMark, aPackets)
+    probabilities = [0.2, 0.4, 0.5, 0.6, 0.8]
+    attacker_ratios = [10, 100, 1000]
 
+    for mark_probability in probabilities:
+        for attacker_mult in attacker_ratios:
+            results = simulate(router_count, branch_count, attacker_count, mark_probability, attacker_mult, defender_node, simulations)
+            results_final.append(results)
 
+    for node_mark, edge_mark, probability_mark, a_packets in results_final:
+        print(node_mark, edge_mark, probability_mark, a_packets)
